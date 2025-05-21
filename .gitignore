@@ -4,4 +4,6 @@
 **/*.py[cod]
 **/*$py.class
 
-
+.DS_Store
+/jax
+/JAX_google
