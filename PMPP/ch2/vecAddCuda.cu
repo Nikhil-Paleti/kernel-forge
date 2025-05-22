@@ -1,49 +1,65 @@
 #include <iostream>
+#include <cstdlib>
 #include <cuda_runtime.h>
 
-__global__ void vecAddKernel(float* A, float* B, float* C, int n){
+__global__ void vecAddKernel(float *a_d, float *b_d, float *c_d, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < n){
-        C[i] = A[i] + B[i];
+    if (i < n) {
+        c_d[i] = a_d[i] + b_d[i];
     }
 }
-void vecAdd(float* A_h, float* B_h, float* C_h, int n) {
 
+void add(float *a_h, float *b_h, float *c_h, int n) {
     int size = n * sizeof(float);
+    float *a_d, *b_d, *c_d;
 
-    float *A_d;
-    float *B_d;
-    float *C_d;
+    cudaMalloc((void**)&a_d, size);
+    cudaMalloc((void**)&b_d, size);
+    cudaMalloc((void**)&c_d, size);
 
-    cudaMalloc( (void**)&A_d , size);
-    cudaMalloc( (void**)&B_d, size);
-    cudaMalloc( (void**)&C_d, size);
+    cudaMemcpy(a_d, a_h, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(b_d, b_h, size, cudaMemcpyHostToDevice);
 
-    cudaMemcpy(A_d, A_h, size, cudaMemcpyHostToDevice);
-    cudaMemcpy(B_d, B_h, size, cudaMemcpyHostToDevice);
+    int blockSize = 256;
+    int numBlocks = (n + blockSize - 1) / blockSize;
 
-    vecAddKernel<<< n/2, 2>>>(A_d, B_d, C_d, n);
+    vecAddKernel<<<numBlocks, blockSize>>>(a_d, b_d, c_d, n);
+    cudaDeviceSynchronize(); // ensure completion
 
-    cudaMemcpy(C_h, C_d, size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(c_h, c_d, size, cudaMemcpyDeviceToHost);
 
-    cudaFree(A_d);
-    cudaFree(B_d);
-    cudaFree(C_d);
+    cudaFree(a_d);
+    cudaFree(b_d);
+    cudaFree(c_d);
+}
 
+void generateRandomVector(float *vec, int n) {
+    for (int i = 0; i < n; i++) {
+        vec[i] = static_cast<int>(rand() % 100); // integers between 0–99
+    }
 }
 
 int main() {
-    int n = 6;
-    float A_h[] = {0,1,2,3,4,5};
-    float B_h[] = {5,4,3,2,1,0};
-    float C_h[n];
+    int n;
+    std::cout << "Enter n: ";
+    std::cin >> n;
 
-    vecAdd(A_h, B_h, C_h, n);
-    
+    float* a_h = new float[n];
+    float* b_h = new float[n];
+    float* c_h = new float[n];
 
-    for(int i=0; i<n; i++){
-        std::cout<<C_h[i]<<std::endl;
+    generateRandomVector(a_h, n);
+    generateRandomVector(b_h, n);
+
+    add(a_h, b_h, c_h, n);
+
+    for (int i = 0; i < n; i++) {
+        std::cout << a_h[i] << " + " << b_h[i] << " = " << c_h[i] << std::endl;
     }
+
+    delete[] a_h;
+    delete[] b_h;
+    delete[] c_h;
 
     return 0;
 }
