@@ -73,6 +73,31 @@ def matmul(a, b):
     )
     return c
                     
+configs = [
+    triton.testing.Benchmark(
+        x_names = ["M", "N", "K"], # we can increase multiple dimensions simultaneously while benchmarking
+        x_vals = [128 * i for i in range(2, 33)],
+        line_arg = "provider", 
+        line_vals = ["torch", "triton"],
+        line_names = ["PyTorch", "Triton"],
+        styles = [("green", "-"), ("blue", "-")],
+        ylabel = "TFLOPS", 
+        plot_name = "matmul-performance",
+        args={},
+    )
+]
+@triton.testing.perf_report(configs)
+def benchmark(M, N, K, provider):
+    a = torch.randn((M, K), device=DEVICE, dtype=torch.float16)
+    b = torch.randn((K, N), device=DEVICE, dtype=torch.float16)
+    quantiles = [0.5, 0.05, 0.95]
+    if provider == 'torch':
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: torch.matmul(a, b), quantiles=quantiles)
+    if provider == 'triton':
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: matmul(a, b), quantiles=quantiles)
+    perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
+    return perf(ms), perf(max_ms), perf(min_ms)
+
 
 def test_matmul_kernel(
     # size: tuple,
@@ -90,4 +115,7 @@ def test_matmul_kernel(
 
 if __name__ == '__main__':
     test_matmul_kernel()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--benchmark":
+        benchmark.run(save_path='./benchmark/', print_data=False)
     
