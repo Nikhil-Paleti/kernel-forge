@@ -7,7 +7,7 @@ print(f'using device: {DEVICE}')
 
 def naive_softmax(x):
     x_max = x.max(dim=1)[0]
-    z = x - x_max 
+    z = x - x_max[:, None]
     numerator = torch.exp(z)
     denominator = numerator.sum(dim=1)
     out = numerator / denominator[:, None]
