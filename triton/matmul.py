@@ -47,16 +47,17 @@ def _matmul_kernel(
     accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
 
     for k in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
-        mask = offs_k < K - k*BLOCK_SIZE_K
-        a = tl.load(a_ptr + a_offsets, mask = mask[None, :], other=0.0)
-        b = tl.load(b_ptr + b_offsets, mask = mask[:, None], other=0.0)
+        mask_m = offs_am[:, None] < M 
+        mask_n = offs_bn[None, :] < N 
+        mask_k = offs_k + k*BLOCK_SIZE_K < K 
+        a = tl.load(a_ptr + a_offsets, mask = mask_m & mask_k[None, :], other=0.0)
+        b = tl.load(b_ptr + b_offsets, mask = mask_k[:, None] & mask_n, other=0.0)
         accumulator = tl.dot(a, b, acc=accumulator)
         a_offsets += BLOCK_SIZE_K * stride_ak
         b_offsets += BLOCK_SIZE_K * stride_bk
     accumulator = accumulator.to(tl.float16) 
     c_offsets = stride_cm * offs_am[:, None] + offs_bn[None, :] * stride_cn
-    c_mask = (offs_am[:, None] < M) & (offs_bn[None, :] < N) 
-    tl.store(c_ptr + c_offsets, accumulator, mask=c_mask)
+    tl.store(c_ptr + c_offsets, accumulator, mask=mask_m & mask_n)
 
 def matmul(a, b):
     (M, K), (_, N) = a.shape, b.shape
