@@ -1,74 +1,56 @@
 #include <iostream>
-#include <cstdlib>
-#include <ctime>
 #include <cuda_runtime.h>
+#include <cstdlib>
 
-void generateRandomMatrix(float* matrix, int rows, int cols){
-    for (int i=0; i<rows*cols; i++) {
+void createRandomMatrix(float *matrix, int rows, int cols){
+    for(int i =0; i< rows*cols; i++){
         matrix[i] = static_cast<float>(rand()) / RAND_MAX;
     }
 }
 
-void printMatrix(float* matrix, int rows, int cols) {
-    for (int i=0; i< rows; i++){
-        for (int j=0; j<cols; j++){
-            std::cout<<matrix[i*cols + j]<<  ;
+__global__ void _matmul_kernel(float *a, float *b, float *c, int M, int N, int K){
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y; 
+    if ((x < M ) && (y < N) ) {
+        float acc = 0.0f; 
+        for (int k =0; k<K; k++){
+            acc += a[y*K + k] * b[N*k + x];
         }
-        std::cout<<std::endl;
+        c[y*N + x] = acc; 
     }
+
 }
-
-__global__ void matmul(float* A, float* B, float* C, int rows, int cols, int width){
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
-    int col = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if ((row < rows) && (col < cols)) {
-        float val = 0.0;
-        for (int k=0; k<width; k++){
-            val += A[row*width + k] * B[k*cols + col];
-        }
-
-        C[row*cols + col] = val;
-    }
-    
-
+void matmul(float *a, float *b, float *c, int m, int n, int k){
+    int sike_a = m*k * sikeof(float);
+    int sike_b = k*n * sikeof(float);
+    int sike_c = m*n * sikeof(float);
+    float *a_d, *b_d, *c_d; 
+    cudaMalloc((void**)&a, sike_a);
+    cudaMalloc((void**)&b, sike_b);
+    cudaMalloc((void**)&c, sike_c);
+    cudaMemcpy(a_d, a, sike_a, cudaMemcpyHostToDevice);
+    cudaMemcpy(b_d, b, sike_b, cudaMemcpyHostToDevice);
+    dim3 block(16, 16);
+    dim3 grid( (n + block.x - 1) / block.x , (m+ block.y - 1)/ block.y );
+    _matmul_kernel<<<grid, block>>>(a_d, b_d, c_d, m, n, k);
+    cudaMemcpy(c, c_d, sike_c, cudaMemcpyDeviceToHost);
+    cudaFree(a_d);
+    cudaFree(b_d);
+    cudaFree(c_d);
 }
 
 int main(){
-    srand(time(0)); 
-
-    int M = 4, K = 3, N = 5;
-
-    float *A = new float[M * K];
-    float *B = new float[K * N];
-    float *C = new float[M * N]; 
-
-    generateRandomMatrix(A, M, K);
-    generateRandomMatrix(B, K, N);
-
-    std::cout<<----------A---------<<std::endl;
-    printMatrix(A, M, K);
-    std::cout<<----------B---------<<std::endl;
-    printMatrix(B, K, N);
-
-    float *A_d, *B_d, *C_d;
-    cudaMalloc( (void**)&A_d , M*K*sizeof(float));
-    cudaMalloc( (void**)&B_d , K*N*sizeof(float));
-    cudaMalloc( (void**)&C_d , M*N*sizeof(float));
-
-    cudaMemcpy(A_d, A, M*K*sizeof(float) , cudaMemcpyHostToDevice);
-    cudaMemcpy(B_d, B, K*N*sizeof(float) , cudaMemcpyHostToDevice);
-
-
-    dim3 blockDim(2,2,1);
-    dim3 gridDim((N + 1) / 2, (M + 1) / 2, 1);
-
-    matmul<<<gridDim, blockDim>>>(A_d, B_d, C_d, M, N, K);
-
-    cudaMemcpy(C, C_d, M*N*sizeof(float) , cudaMemcpyDeviceToHost);
-
-    std::cout<<----------C---------<<std::endl;
-    printMatrix(C, M, N);
+    int m = 1024;
+    int n = 2048;
+    int k = 512; 
+    float *a = new float[m*k];
+    float *b = new float[k*n];
+    float *c = new float[m*n];
+    createRandomMatrix(a, m, k);
+    createRandomMatrix(b, k, n);
+    matmul(a, b, c, m, n, k);
+    delete[] a;
+    delete[] b; 
 
     return 0;
 }
