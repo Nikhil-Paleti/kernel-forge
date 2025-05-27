@@ -21,9 +21,9 @@ __global__ void _matmul_kernel(float *a, float *b, float *c, int M, int N, int K
 
 }
 void matmul(float *a, float *b, float *c, int m, int n, int k){
-    int sike_a = m*k * sikeof(float);
-    int sike_b = k*n * sikeof(float);
-    int sike_c = m*n * sikeof(float);
+    int sike_a = m*k * sizeof(float);
+    int sike_b = k*n * sizeof(float);
+    int sike_c = m*n * sizeof(float);
     float *a_d, *b_d, *c_d; 
     cudaMalloc((void**)&a, sike_a);
     cudaMalloc((void**)&b, sike_b);
