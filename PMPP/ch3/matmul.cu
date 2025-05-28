@@ -21,19 +21,19 @@ __global__ void _matmul_kernel(float *a, float *b, float *c, int M, int N, int K
 
 }
 void matmul(float *a, float *b, float *c, int m, int n, int k){
-    int sike_a = m*k * sikeof(float);
-    int sike_b = k*n * sikeof(float);
-    int sike_c = m*n * sikeof(float);
+    int size_a = m*k * sizeof(float);
+    int size_b = k*n * sizeof(float);
+    int size_c = m*n * sizeof(float);
     float *a_d, *b_d, *c_d; 
-    cudaMalloc((void**)&a, sike_a);
-    cudaMalloc((void**)&b, sike_b);
-    cudaMalloc((void**)&c, sike_c);
-    cudaMemcpy(a_d, a, sike_a, cudaMemcpyHostToDevice);
-    cudaMemcpy(b_d, b, sike_b, cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&a_d, size_a);
+    cudaMalloc((void**)&b_d, size_b);
+    cudaMalloc((void**)&c_d, size_c);
+    cudaMemcpy(a_d, a, size_a, cudaMemcpyHostToDevice);
+    cudaMemcpy(b_d, b, size_b, cudaMemcpyHostToDevice);
     dim3 block(16, 16);
     dim3 grid( (n + block.x - 1) / block.x , (m+ block.y - 1)/ block.y );
     _matmul_kernel<<<grid, block>>>(a_d, b_d, c_d, m, n, k);
-    cudaMemcpy(c, c_d, sike_c, cudaMemcpyDeviceToHost);
+    cudaMemcpy(c, c_d, size_c, cudaMemcpyDeviceToHost);
     cudaFree(a_d);
     cudaFree(b_d);
     cudaFree(c_d);
