@@ -1,0 +1,202 @@
+#include <iostream>
+#include <cuda_runtime.h>
+#include <cstdlib>
+#include <cmath>
+#include <iomanip>
+
+#define c0 1
+#define c1 1
+#define c2 1
+#define c3 1
+#define c4 1
+#define c5 1
+#define c6 1
+
+#define ORDER 1
+#define INPUT_TILE 8
+#define OUTPUT_TILE (INPUT_TILE-2*ORDER)
+
+void generateRandomMatrix(float *matrix, int rows, int cols, int depth) {
+    for (int i = 0; i < rows * cols * depth; i++) {
+        matrix[i] = static_cast<float>(rand()) / RAND_MAX;
+    }
+}
+
+__global__ void _stencil(float *input, float *output, int M, int N, int K) {
+    int base_k = blockIdx.z * OUTPUT_TILE;
+    int j = blockIdx.y * OUTPUT_TILE + threadIdx.y - 1;
+    int i = blockIdx.x * OUTPUT_TILE + threadIdx.x - 1;
+
+    __shared__ float in_curr_s[INPUT_TILE][INPUT_TILE];
+    float in_curr;
+    float in_prev;
+    float in_next; 
+
+    int load_k = base_k - 1;
+    if (
+        (load_k >= 0 ) &&
+        (j >= 0 && j < M) &&
+        (i >= 0 && i < N)
+    ){
+        in_prev = input[load_k*M*N + j*N + i];
+    }else{
+        in_prev = 0.0;
+    }
+
+    load_k = base_k;
+    if (
+        (load_k >= 0 && load_k < K) &&
+        (j >= 0 && j < M) &&
+        (i >= 0 && i < N)
+    ){
+        in_curr =  input[load_k*M*N + j*N + i];
+        in_curr_s[threadIdx.y][threadIdx.x] = in_curr;
+    }else{
+        in_curr = 0.0;
+        in_curr_s[threadIdx.y][threadIdx.x] = in_curr;
+    }
+
+    __syncthreads();
+
+    for(int c=0; c<OUTPUT_TILE; c++){
+        int current_k = base_k + c;
+        int next_k = current_k + 1;
+
+        if (
+            (i >=0 && i < N) &&
+            (j >=0 && j < M) &&
+            (next_k < K)
+        ){
+            in_next = input[next_k*M*N + j*N + i];
+        }else{
+             in_next = 0.0;
+        }
+
+        __syncthreads();
+
+        if(
+            (i > 0 && i < N-1) &&
+            (j > 0 && j < M-1) &&
+            (current_k >  0 && current_k < K-1)
+        ){
+            if(
+                (threadIdx.x >= 1 && threadIdx.x < blockDim.x-1) &&
+                (threadIdx.y >= 1 && threadIdx.y < blockDim.y-1) 
+            ){
+                output[current_k * M * N + j * N + i] = c0*in_curr_s[threadIdx.y][threadIdx.x] 
+                                             +  c1*in_curr_s[threadIdx.y][threadIdx.x-1]
+                                             + c2*in_curr_s[threadIdx.y][threadIdx.x+1]
+                                             + c3*in_curr_s[threadIdx.y-1][threadIdx.x]
+                                             + c4*in_curr_s[threadIdx.y+1][threadIdx.x]
+                                             + c5*in_prev
+                                             + c6*in_next;
+            }
+            
+        }else if (i >= 0 && i < N &&
+        j >= 0 && j < M &&
+        current_k >= 0 && current_k < K ){
+            output[current_k * M * N + j * N + i] = in_curr_s[threadIdx.y][threadIdx.x];
+        }
+
+        __syncthreads();
+
+        in_prev = in_curr;
+        in_curr = in_next;
+        in_curr_s[threadIdx.y][threadIdx.x] = in_curr;
+
+        __syncthreads();
+
+    }
+
+}
+
+void stencil(float *input, float *output, int M, int N, int K) {
+    size_t size = M * N * K * sizeof(float);
+    float *input_d, *output_d;
+
+    cudaMalloc((void **)&input_d, size);
+    cudaMalloc((void **)&output_d, size);
+
+    cudaMemcpy(input_d, input, size, cudaMemcpyHostToDevice);
+
+    dim3 block(INPUT_TILE, INPUT_TILE, 1);
+    dim3 grid((N + OUTPUT_TILE - 1) / OUTPUT_TILE,
+              (M + OUTPUT_TILE - 1) / OUTPUT_TILE,
+              (K + OUTPUT_TILE - 1) / OUTPUT_TILE);
+
+    _stencil<<<grid, block>>>(input_d, output_d, M, N, K);
+
+    cudaMemcpy(output, output_d, size, cudaMemcpyDeviceToHost);
+
+    cudaFree(input_d);
+    cudaFree(output_d);
+}
+
+void stencil_cpu(const float *input, float *output, int M, int N, int K) {
+    for (int k = 0; k < K; ++k) {
+        for (int j = 0; j < M; ++j) {
+            for (int i = 0; i < N; ++i) {
+                int idx = k * M * N + j * N + i;
+
+                if (i > 0 && i < N - 1 &&
+                    j > 0 && j < M - 1 &&
+                    k > 0 && k < K - 1) {
+                    output[idx] =
+                        c0 * input[idx] +
+                        c1 * input[k * M * N + j * N + (i - 1)] +
+                        c2 * input[k * M * N + j * N + (i + 1)] +
+                        c3 * input[k * M * N + (j - 1) * N + i] +
+                        c4 * input[k * M * N + (j + 1) * N + i] +
+                        c5 * input[(k - 1) * M * N + j * N + i] +
+                        c6 * input[(k + 1) * M * N + j * N + i];
+                } else {
+                    output[idx] = input[idx];
+                }
+            }
+        }
+    }
+}
+
+int main() {
+    int M = 64; // Reduced size for quick testing and verification
+    int N = 64;
+    int K = 64;
+    size_t total = M * N * K;
+
+    float *input = new float[total];
+    float *output_gpu = new float[total];
+    float *output_cpu = new float[total];
+
+    generateRandomMatrix(input, M, N, K);
+
+    // Run GPU stencil
+    stencil(input, output_gpu, M, N, K);
+
+    // Run CPU stencil
+    stencil_cpu(input, output_cpu, M, N, K);
+
+    // Compare outputs
+    float epsilon = 1e-5f;
+    bool mismatch_found = false;
+    for (size_t i = 0; i < total; ++i) {
+        if (std::fabs(output_gpu[i] - output_cpu[i]) > epsilon) {
+            std::cerr << "Mismatch at index " << i
+                      << ": GPU = " << std::fixed << std::setprecision(8) << output_gpu[i]
+                      << ", CPU = " << output_cpu[i]
+                      << ", Diff = " << std::fabs(output_gpu[i] - output_cpu[i]) << std::endl;
+            mismatch_found = true;
+            break;
+        }
+    }
+
+    if (!mismatch_found) {
+        std::cout << "Verification successful! GPU and CPU outputs match within tolerance." << std::endl;
+    } else {
+        std::cout << "Verification failed! Outputs differ." << std::endl;
+    }
+
+    delete[] input;
+    delete[] output_gpu;
+    delete[] output_cpu;
+    return 0;
+}
