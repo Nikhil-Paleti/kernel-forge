@@ -19,6 +19,7 @@
 | Kernel | File |
 |---|---|
 | 1D Convolution | [1D_convolution.py](./1D_convolution.py) |
+| 2D Convolution | [2D_Convolution.py](./2D_Convolution.py) |
 
 ---
 

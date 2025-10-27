@@ -30,7 +30,8 @@ Each kernel is written **from scratch**, beginning in **Triton**, then extended 
 - **Matrix Copy** – copy a matrix using gpu.
 
 ### Convolution & Filtering
-- **1D Convolution** – foundation for conv1d / feature extraction kernels.
+- **1D Convolution** – 1D conv.
+- **2D Convolution** – 2D conv.
 
 ### Activation Functions
 - **ReLU** – standard nonlinear activation.  
