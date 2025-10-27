@@ -28,6 +28,7 @@ Each kernel is written **from scratch**, beginning in **Triton**, then extended 
 - **Matrix Multiplication (GEMM)** – base operator behind most ML models.  
 - **Matrix Transpose** – transpose a matrix.  
 - **Matrix Copy** – copy a matrix using gpu.
+- **FP16 Dot Product** - fp16 dot with fp32 accumulation
 
 ### Convolution & Filtering
 - **1D Convolution** – 1D conv.

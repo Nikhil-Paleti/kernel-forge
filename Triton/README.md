@@ -11,6 +11,7 @@
 | Matrix Multiplication (GEMM) | [Matrix_Multiplication.py](./Matrix_Multiplication.py) |
 | Matrix Transpose | [Matrix_Transpose.py](./Matrix_Transpose.py) |
 | Matrix Copy | [Matrix_Copy.py](./Matrix_Copy.py) |
+| FP16 Dot Product | [FP16_Dot_Product.py](./FP16_Dot_Product.py) |
 
 ---
 
