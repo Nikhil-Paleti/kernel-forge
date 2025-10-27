@@ -50,6 +50,7 @@
 |---|---|
 | Count Array Element | [Count_Array_Element.py](./Count_Array_Element.py) |
 | Count 2D Array Element | [Count_2D_Array_Element.py](./Count_2D_Array_Element.py) |
+| Reduction | [Reduction.py](./Reduction.py) |
 
 ---
 

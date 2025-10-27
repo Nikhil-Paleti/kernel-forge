@@ -47,6 +47,7 @@ Each kernel is written **from scratch**, beginning in **Triton**, then extended 
 ### Reductions & Counting
 - **Count Array Elements** – simple reduction / histogram base.  
 - **Count 2D Array Elements** – same as above.
+- **Reduction** - sum of a tensor in GPU.
 
 ### Miscellaneous
 - **Rainbow Table** – demonstration kernel for hashing / lookup patterns.
